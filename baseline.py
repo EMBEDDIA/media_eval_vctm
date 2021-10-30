@@ -52,5 +52,5 @@ r_50 = r_50 / len(test_texts)
 r_100 = r_100 / len(test_texts)
 
 print("MRR\tR1\tR5\tR10\tR50\tR100")
-print("%2.4f\t%2.4f\t%2.4f\t%2d\t%2.4f\t%2.4f" %(mrr, r_1, r_5, r_10, r_50, r_100))
+print("%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f" %(mrr, r_1, r_5, r_10, r_50, r_100))
 
