@@ -128,12 +128,12 @@ print("%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f" %(mrr, r_1, r_5, r_10, r_50, r_
 
 
 mt = Matches(test_topic_dist, mapped_v_test_topic_dist)
-print("Matches: %d" %mt.score())
-print("Matches: %d" %mt.score(), file=out)
+print("Matches:", mt.score())
+print("Matches:", mt.score(), file=out)
 
 kl = KLDivergence(test_topic_dist, mapped_v_test_topic_dist)
 print("KLD: %2.4f" %kl.score())
-print("KLD: %2.4f" %mt.score(), file=out)
+print("KLD: %2.4f" %kl.score(), file=out)
 
 print(v2t, file=out)
 out.close()

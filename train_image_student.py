@@ -1,5 +1,4 @@
 import argparse
-import numpy as np
 import os
 import pickle
 
@@ -16,8 +15,6 @@ args = parser.parse_args()
 
 model_type, n_topics, _ = os.path.basename(args.text_model).split("_")
 image_training_dataset = pickle.load(open(os.path.join(args.text_model, "image_training_dataset.pkl"), "rb"))
-
-image_training_dataset.X_contextual = np.array(image_training_dataset.X_contextual.cpu())
 
 preprocessed_split = pickle.load(open(os.path.join(args.text_model, "preprocessed_split.pkl"), "rb"))
 
