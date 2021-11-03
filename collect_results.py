@@ -14,4 +14,8 @@ for model in sorted(os.listdir(args.folder)):
             score, value = line.split(": ")
             score_dict[score] = value.strip()
 
-        print(model, score_dict["IRBO"], score_dict["Diversity"], score_dict["Coherence"])
+        try:
+            print(model, score_dict["IRBO"], score_dict["Diversity"], score_dict["Coherence"])
+        except:
+            print(model)
+            continue
