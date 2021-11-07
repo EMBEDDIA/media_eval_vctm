@@ -5,10 +5,11 @@ from contextualized_topic_models.models.ctm import CTM
 import pickle, os
 from tqdm import tqdm
 from utils import load_model
+import numpy as np
 
-def get_posteriors(teacher_dataset, teacher_model, batch_size=25, num_workers=10):
+def get_posteriors(teacher_dataset, teacher_model, contextual_size=512, batch_size=25, num_workers=10, epoch=99):
     tp = pickle.load(open(os.path.join(teacher_model, "tp.pkl"), "rb"))
-    ctm = load_model(teacher_model, len(tp.vocab))
+    ctm = load_model(teacher_model, len(tp.vocab), contextual_size, epoch=epoch)
     
     ctm.model.zero_grad()
 
@@ -28,11 +29,11 @@ def get_posteriors(teacher_dataset, teacher_model, batch_size=25, num_workers=10
         posterior_means.append(posterior_mean)
         posterior_log_variances.append(posterior_log_variance)
 
-        posterior_variances = torch.cat(posterior_variances)
-        posterior_means = torch.cat(posterior_means)
-        posterior_log_variances = torch.cat(posterior_log_variances)
+    posterior_variances = torch.cat(posterior_variances)
+    posterior_means = torch.cat(posterior_means)
+    posterior_log_variances = torch.cat(posterior_log_variances)
 
-        return posterior_variances, posterior_means, posterior_log_variances
+    return posterior_variances.cpu().detach().numpy(), posterior_means.cpu().detach().numpy(), posterior_log_variances.cpu().detach().numpy()
 
 
 
@@ -70,13 +71,13 @@ class CTMDatasetPosteriors(Dataset):
 
         posterior_variance = torch.FloatTensor(self.posterior_variance[i])
         posterior_mean = torch.FloatTensor(self.posterior_mean[i])
-        posterior_log_mean = torch.FloatTensor(self.posterior_log_mean[i])
+        posterior_log_variance = torch.FloatTensor(self.posterior_log_variance[i])
         
 
         return_dict = {'X_bow': X_bow, 'X_contextual': X_contextual,
                        'posterior_variance' : posterior_variance,
                        'posterior_mean': posterior_mean,
-                       'posterior_log_mean': posterior_log_mean}
+                       'posterior_log_variance': posterior_log_variance}
 
 
         return return_dict
@@ -107,21 +108,21 @@ class StudentZeroShotTM(CTM):
 
             teacher_posterior_variance = batch_samples['posterior_variance']
             teacher_posterior_mean = batch_samples['posterior_mean']
-            teacher_posterior_log_mean = batch_samples['posterior_log_mean']
+            teacher_posterior_log_variance = batch_samples['posterior_log_variance']
 
             
             if self.USE_CUDA:
                 X_bow = X_bow.cuda()
                 X_contextual = X_contextual.cuda()
-                posterior_variance = posterior_variance.cuda()
-                posterior_mean = posterior_mean.cuda()
-                posterior_log_mean = posterior_log_mean.cuda()
+                teacher_posterior_variance = teacher_posterior_variance.cuda()
+                teacher_posterior_mean = teacher_posterior_mean.cuda()
+                teacher_posterior_log_variance = teacher_posterior_log_variance.cuda()
 
 
             # forward pass
             self.model.zero_grad()
             prior_mean, prior_variance, posterior_mean, posterior_variance,\
-            posterior_log_variance, word_dists, estimated_labels = self.model(X_bow, X_contextual, labels)
+            posterior_log_variance, word_dists, estimated_labels = self.model(X_bow, X_contextual)
 
             # backward pass
             kl_loss, rl_loss = self._loss(
@@ -131,11 +132,6 @@ class StudentZeroShotTM(CTM):
             loss = self.weights["beta"]*kl_loss + rl_loss
             loss = loss.sum()
 
-            if labels is not None:
-                target_labels = torch.argmax(labels, 1)
-
-                label_loss = torch.nn.CrossEntropyLoss()(estimated_labels, target_labels)
-                loss += label_loss
 
             loss.backward()
             self.optimizer.step()

@@ -18,7 +18,6 @@ import nltk
 import pickle
 
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--train", type=str, default="train.pkl", required=False)
 parser.add_argument("--n_topics", type=int, default=20, required=False)
@@ -39,30 +38,34 @@ tp = TopicModelDataPreparation("clip-ViT-B-32-multilingual-v1")
 
 
 print("Text preprocessing")
-training_dataset = tp.fit(text_for_contextual=unpreprocessed_corpus, text_for_bow=preprocessed_documents)
-
-
+text_training_dataset = tp.fit(text_for_contextual=unpreprocessed_corpus, text_for_bow=preprocessed_documents)
 preprocessed_split = [t.split() for t in preprocessed_documents]
 
 img_model = SentenceTransformer('clip-ViT-B-32')
 print("Encoding images")
 img_emb = img_model.encode(images, batch_size=128, convert_to_tensor=True, show_progress_bar=True)
 img_emb = np.array(img_emb.cpu())
-image_training_dataset = CTMDataset(X_contextual = img_emb, X_bow = training_dataset.X_bow, idx2token = training_dataset.idx2token)
+image_training_dataset = CTMDataset(X_contextual = img_emb, X_bow = text_training_dataset.X_bow, idx2token = text_training_dataset.idx2token)
+
+print("Joining")
+joint_embs = np.concatenate((text_training_dataset.X_contextual, img_emb), axis=1)
+print("JOINT_EMBS: ", joint_embs.shape)
+training_dataset = CTMDataset(X_contextual = joint_embs, X_bow = text_training_dataset.X_bow, idx2token = text_training_dataset.idx2token)
 
 for t in range(args.tries):
-    model_dir = "models/text/%s_%s_%s_%s_%s/" %(args.model_type, args.n_topics, args.num_epochs, args.beta, t)
+    model_dir = "models/joint/%s_%s_%s_%s_%s/" %(args.model_type, args.n_topics, args.num_epochs, args.beta, t)
     os.makedirs(model_dir)
     log = open(os.path.join(model_dir,"log.txt"), "w")
     print("Train file: %s" %os.path.abspath(args.train), file=log)
     pickle.dump(training_dataset, open(os.path.join(model_dir, "training_dataset.pkl"), "wb"))
+    pickle.dump(text_training_dataset, open(os.path.join(model_dir, "text_training_dataset.pkl"), "wb"))
     pickle.dump(image_training_dataset, open(os.path.join(model_dir, "image_training_dataset.pkl"), "wb"))
     pickle.dump(tp, open(os.path.join(model_dir, "tp.pkl"), "wb"))
     pickle.dump(preprocessed_split, open(os.path.join(model_dir, "preprocessed_split.pkl"), "wb"))
 
     loss_weights = {"beta":args.beta}
     ctm = ZeroShotTM(bow_size=len(tp.vocab),
-                     contextual_size=512, 
+                     contextual_size=joint_embs.shape[1], 
                      n_components=args.n_topics, 
                      model_type=args.model_type, 
                      num_epochs = args.num_epochs, 

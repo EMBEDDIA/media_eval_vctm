@@ -16,20 +16,23 @@ from contextualized_topic_models.evaluation.measures import Matches, KLDivergenc
 from sentence_transformers import SentenceTransformer, util
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
-from utils import load_data, load_model
+from utils import load_data, load_model, sharpen_topic_distirbution
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--text_model", type=str, required=True)
 parser.add_argument("--image_model", type=str, required=True)
+parser.add_argument("--tepoch", type=int, default=99, required=False)
+parser.add_argument("--iepoch", type=int, default=99, required=False)
 parser.add_argument("--test", type=str, default="test.pkl", required=False)
+parser.add_argument("--sharpen", dest="sharpen", action='store_true')
 args = parser.parse_args()
 
 
 test_texts, test_imgs = load_data(args.test)
 tp = pickle.load(open(os.path.join(args.text_model, "tp.pkl"), "rb"))
-ctm = load_model(args.text_model, len(tp.vocab))
-vctm = load_model(args.image_model, len(tp.vocab))
+ctm = load_model(args.text_model, len(tp.vocab), epoch=args.tepoch)
+vctm = load_model(args.image_model, len(tp.vocab), epoch=args.iepoch)
 
 ctm_mat = ctm.get_topic_word_distribution()
 vctm_mat = vctm.get_topic_word_distribution()
@@ -80,9 +83,16 @@ mapped_v_test_topic_dist = np.zeros_like(v_test_topic_dist)
 for v, t in v2t.items():
     mapped_v_test_topic_dist[:,t] = v_test_topic_dist[:,v]
 
+if args.sharpen:
+    test_topic_dist = sharpen_topic_distirbution(test_topic_dist)
+    mapped_v_test_topic_dist = sharpen_topic_distirbution(mapped_v_test_topic_dist)
+
 dist_sim = cosine_similarity(test_topic_dist, mapped_v_test_topic_dist)
 
-out = open(os.path.join(args.image_model, "eval.txt"), "w")
+if args.sharpen:
+    out = open(os.path.join(args.image_model, "eval_sharp.txt"), "w")
+else:
+    out = open(os.path.join(args.image_model, "eval.txt"), "w")
 
 mrr = 0
 r_1 = 0
@@ -128,8 +138,8 @@ print("%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f\t%2.4f" %(mrr, r_1, r_5, r_10, r_50, r_
 
 
 mt = Matches(test_topic_dist, mapped_v_test_topic_dist)
-print("Matches: %2.2f", mt.score())
-print("Matches: %2.2f", mt.score(), file=out)
+print("Matches: %2.2f" %mt.score())
+print("Matches: %2.2f" %mt.score(), file=out)
 
 kl = KLDivergence(test_topic_dist, mapped_v_test_topic_dist)
 print("KLD: %2.2f" %kl.score())
