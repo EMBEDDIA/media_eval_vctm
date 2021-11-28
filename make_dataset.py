@@ -12,3 +12,7 @@ train, test = train_test_split(data, test_size=0.2)
 
 train.to_pickle("./train.pkl")
 test.to_pickle("./test.pkl")
+
+
+whole = pd.concat([train, test])
+whole.to_pickle("./whole.pkl")
